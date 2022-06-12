@@ -13,6 +13,7 @@ import cv2
 import numpy as np
 from tensorflow.compat.v1 import ConfigProto
 from tensorflow.compat.v1 import InteractiveSession
+import csv
 
 flags.DEFINE_string('framework', 'tf', '(tf, tflite, trt')
 flags.DEFINE_string('weights', './checkpoints/yolov4-416',
@@ -23,8 +24,8 @@ flags.DEFINE_string('model', 'yolov4', 'yolov3 or yolov4')
 flags.DEFINE_string('video', './data/road.mp4', 'path to input video')
 flags.DEFINE_float('iou', 0.45, 'iou threshold')
 flags.DEFINE_float('score', 0.25, 'score threshold')
-flags.DEFINE_string('output', None, 'path to output video')
-flags.DEFINE_string('output_format', 'XVID', 'codec used in VideoWriter when saving video to file')
+#flags.DEFINE_string('output', None, 'path to output video')
+flags.DEFINE_string('output_format', 'mp4v', 'codec used in VideoWriter when saving video to file')
 flags.DEFINE_boolean('dis_cv2_window', False, 'disable cv2 window during the process') # this is good for the .ipynb
 
 def main(_argv):
@@ -33,20 +34,22 @@ def main(_argv):
     session = InteractiveSession(config=config)
     STRIDES, ANCHORS, NUM_CLASS, XYSCALE = utils.load_config(FLAGS)
     #input_size = FLAGS.size
-    video_path = FLAGS.video
+    video_name = FLAGS.video
+    video_path = './data/videos/'+video_name+'.mp4'
+    output_path = './detection_results/'+video_name+'.mp4'
     input_W = 1920
     input_H = 1088
 
     print("Video from: ", video_path )
     vid = cv2.VideoCapture(video_path)
-    
-    if FLAGS.output:
-        # by default VideoCapture returns float instead of int
-        width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        fps = int(vid.get(cv2.CAP_PROP_FPS))
-        codec = cv2.VideoWriter_fourcc(*FLAGS.output_format)
-        out = cv2.VideoWriter(FLAGS.output, codec, fps, (width, height))
+    f = open('logs/'+video_name+'.csv','w')
+
+    # by default VideoCapture returns float instead of int
+    width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps = int(vid.get(cv2.CAP_PROP_FPS))
+    codec = cv2.VideoWriter_fourcc(*FLAGS.output_format)
+    out = cv2.VideoWriter(output_path, codec, fps, (width, height))
 
     saved_model_loaded = tf.saved_model.load(FLAGS.weights, tags=[tag_constants.SERVING])    
     infer = saved_model_loaded.signatures['serving_default']
@@ -85,6 +88,18 @@ def main(_argv):
             score_threshold=FLAGS.score
         )
         pred_bbox = [boxes.numpy(), scores.numpy(), classes.numpy(), valid_detections.numpy()]
+        row = str(frame_id)
+        for i in range(valid_detections.numpy()[0]):
+            for j in range(4):
+                row += ','
+                row += str(boxes.numpy()[0][i][j])
+            row += ','
+            row += str(scores.numpy()[0][i])
+            row += ','
+            row += str(int(classes.numpy()[0][i]))
+        f.write(row)
+        f.write('\n')
+
         image = utils.draw_bbox(frame, pred_bbox)
         #cv2.imwrite('./detection_results/images/'+str(frame_id)+'.jpg', image)
         curr_time = time.time()
@@ -99,10 +114,10 @@ def main(_argv):
             cv2.imshow("result", result)
             if cv2.waitKey(1) & 0xFF == ord('q'): break'''
 
-        if FLAGS.output:
-            out.write(result)
+        out.write(result)
 
         frame_id += 1
+    f.close()
 
 if __name__ == '__main__':
     try:
