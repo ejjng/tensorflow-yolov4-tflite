@@ -1,0 +1,4 @@
+coco_mixed/
+coco_mixed.tar.gz
+.ipynb_checkpoints/
+data/*.weights
