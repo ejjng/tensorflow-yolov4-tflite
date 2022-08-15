@@ -317,7 +317,7 @@ def filter_boxes(box_xywh, scores, score_threshold=0.4, input_shape = tf.constan
     return (boxes, pred_conf)
 
 
-def compute_loss(pred, conv, label, bboxes, STRIDES, NUM_CLASS, IOU_LOSS_THRESH, i=0):
+def compute_loss(pred, conv, label, bboxes, STRIDES, NUM_CLASS, IOU_LOSS_THRESH, i=0, gamma=0):
     conv_shape  = tf.shape(conv)
     batch_size  = conv_shape[0]
     output_size = conv_shape[1]
@@ -337,7 +337,10 @@ def compute_loss(pred, conv, label, bboxes, STRIDES, NUM_CLASS, IOU_LOSS_THRESH,
     giou = tf.expand_dims(utils.bbox_giou(pred_xywh, label_xywh), axis=-1)
     input_size = tf.cast(input_size, tf.float32)
 
-    bbox_loss_scale = 2.0 - 1.0 * label_xywh[:, :, :, :, 2:3] * label_xywh[:, :, :, :, 3:4] / (input_size ** 2)
+    if gamma <= 0:
+        bbox_loss_scale = 2.0 - 1.0 * label_xywh[:, :, :, :, 2:3] * label_xywh[:, :, :, :, 3:4] / (input_size ** 2)
+    else:
+        bbox_loss_scale = gamma
     giou_loss = respond_bbox * bbox_loss_scale * (1- giou)
 
     iou = utils.bbox_iou(pred_xywh[:, :, :, :, np.newaxis, :], bboxes[:, np.newaxis, np.newaxis, np.newaxis, :, :])
