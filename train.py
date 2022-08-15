@@ -26,6 +26,8 @@ def main(_argv):
     trainset = Dataset(FLAGS, is_training=True)
     testset = Dataset(FLAGS, is_training=False)
     logdir = "./data/log/" + FLAGS.name
+    statusdir = "./data/status/" + FLAGS.name +".log"
+    f = open(statusdir, 'w', buffering=1)
     isfreeze = False
     steps_per_epoch = len(trainset)
     first_stage_epochs = cfg.TRAIN.FISRT_STAGE_EPOCHS
@@ -95,7 +97,7 @@ def main(_argv):
                 conf_loss += loss_items[1]
                 prob_loss += loss_items[2]
 
-            total_loss = giou_loss + conf_loss + prob_loss
+            total_loss = giou_loss + FLAGS.alpha * conf_loss + FLAGS.beta * prob_loss
 
             gradients = tape.gradient(total_loss, model.trainable_variables)
             optimizer.apply_gradients(zip(gradients, model.trainable_variables))
@@ -103,6 +105,11 @@ def main(_argv):
                      "prob_loss: %4.2f   total_loss: %4.2f" % (global_steps, total_steps, optimizer.lr.numpy(),
                                                                giou_loss, conf_loss,
                                                                prob_loss, total_loss))
+            f.write("=> STEP %4d/%4d   lr: %.6f   giou_loss: %4.2f   conf_loss: %4.2f   "
+                     "prob_loss: %4.2f   total_loss: %4.2f\n" % (global_steps, total_steps, optimizer.lr.numpy(),
+                                                               giou_loss, conf_loss,
+                                                               prob_loss, total_loss))
+            
             # update learning rate
             global_steps.assign_add(1)
             if global_steps < warmup_steps:
@@ -129,7 +136,7 @@ def main(_argv):
             # optimizing process
             for i in range(len(freeze_layers)):
                 conv, pred = pred_result[i * 2], pred_result[i * 2 + 1]
-                loss_items = compute_loss(pred, conv, target[i][0], target[i][1], STRIDES=STRIDES, NUM_CLASS=NUM_CLASS, IOU_LOSS_THRESH=IOU_LOSS_THRESH, i=i)
+                loss_items = compute_loss(pred, conv, target[i][0], target[i][1], STRIDES=STRIDES, NUM_CLASS=NUM_CLASS, IOU_LOSS_THRESH=IOU_LOSS_THRESH, i=i, gamma=FLAGS.gamma)
                 giou_loss += loss_items[0]
                 conf_loss += loss_items[1]
                 prob_loss += loss_items[2]
@@ -138,6 +145,9 @@ def main(_argv):
 
             tf.print("=> TEST STEP %4d   giou_loss: %4.2f   conf_loss: %4.2f   "
                      "prob_loss: %4.2f   total_loss: %4.2f" % (global_steps, giou_loss, conf_loss,
+                                                               prob_loss, total_loss))
+            f.write("=> TEST STEP %4d   giou_loss: %4.2f   conf_loss: %4.2f   "
+                     "prob_loss: %4.2f   total_loss: %4.2f\n" % (global_steps, giou_loss, conf_loss,
                                                                prob_loss, total_loss))
 
     for epoch in range(first_stage_epochs + second_stage_epochs):
@@ -158,6 +168,8 @@ def main(_argv):
         for image_data, target in testset:
             test_step(image_data, target)
         model.save_weights("./"+FLAGS.name+"/yolov4")
+    
+    f.close()
 
 if __name__ == '__main__':
     try:
