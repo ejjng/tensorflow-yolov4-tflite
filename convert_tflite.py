@@ -8,10 +8,9 @@ import core.utils as utils
 import os
 from core.config import cfg
 
-flags.DEFINE_string('weights', './checkpoints/yolov4-416', 'path to weights file')
-flags.DEFINE_string('output', './checkpoints/yolov4-416-fp32.tflite', 'path to output')
-flags.DEFINE_integer('input_size', 416, 'path to output')
-flags.DEFINE_string('quantize_mode', 'float32', 'quantize mode (int8, float16, float32)')
+flags.DEFINE_string('name', '', 'path to weights file')
+flags.DEFINE_integer('input_size', 800, 'path to output')
+flags.DEFINE_string('quantize_mode', 'float16', 'quantize mode (int8, float16, float32)')
 flags.DEFINE_string('dataset', "/Volumes/Elements/data/coco_dataset/coco/5k.txt", 'path to dataset')
 
 def representative_data_gen():
@@ -27,8 +26,8 @@ def representative_data_gen():
     else:
       continue
 
-def save_tflite():
-  converter = tf.lite.TFLiteConverter.from_saved_model(FLAGS.weights)
+def save_tflite(model_weights, model_output):
+  converter = tf.lite.TFLiteConverter.from_saved_model(model_weights)
 
   if FLAGS.quantize_mode == 'float16':
     converter.optimizations = [tf.lite.Optimize.DEFAULT]
@@ -43,12 +42,12 @@ def save_tflite():
     converter.representative_dataset = representative_data_gen
 
   tflite_model = converter.convert()
-  open(FLAGS.output, 'wb').write(tflite_model)
+  open(model_output, 'wb').write(tflite_model)
 
-  logging.info("model saved to: {}".format(FLAGS.output))
+  logging.info("model saved to: {}".format(model_output))
 
-def demo():
-  interpreter = tf.lite.Interpreter(model_path=FLAGS.output)
+def demo(model_weights, model_output):
+  interpreter = tf.lite.Interpreter(model_path=model_output)
   interpreter.allocate_tensors()
   logging.info('tflite model loaded')
 
@@ -68,8 +67,10 @@ def demo():
   print(output_data)
 
 def main(_argv):
-  save_tflite()
-  demo()
+  model_weights = './checkpoints/models/' + FLAGS.name
+  model_output = './checkpoints/tflite_models/' + FLAGS.name +'.tflite'
+  save_tflite(model_weights, model_output)
+  demo(model_weights, model_output)
 
 if __name__ == '__main__':
     try:

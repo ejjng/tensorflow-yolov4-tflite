@@ -1,0 +1,7 @@
+android/
+detection_results/
+data/
+__pycache__
+logs/*
+checkpoints/
+outputs/

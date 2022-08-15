@@ -13,16 +13,18 @@ import numpy as np
 from tensorflow.compat.v1 import ConfigProto
 from tensorflow.compat.v1 import InteractiveSession
 
-flags.DEFINE_string('framework', 'tf', '(tf, tflite, trt')
-flags.DEFINE_string('weights', './checkpoints/yolov4-416',
-                    'path to weights file')
-flags.DEFINE_integer('size', 416, 'resize images to')
+flags.DEFINE_string('framework', 'tflite', '(tf, tflite, trt')
+# flags.DEFINE_string('weights', './checkpoints/yolov4-800-fine-tune-fp16.tflite',
+#                     'path to weights file')
+flags.DEFINE_integer('size', 800, 'resize images to')
 flags.DEFINE_boolean('tiny', False, 'yolo or yolo-tiny')
 flags.DEFINE_string('model', 'yolov4', 'yolov3 or yolov4')
-flags.DEFINE_string('image', './data/kite.jpg', 'path to input image')
-flags.DEFINE_string('output', 'result.png', 'path to output image')
+# flags.DEFINE_string('image', './data/mix000000.png', 'path to input image')
+# flags.DEFINE_string('output', 'result.png', 'path to output image')
 flags.DEFINE_float('iou', 0.45, 'iou threshold')
 flags.DEFINE_float('score', 0.25, 'score threshold')
+flags.DEFINE_string('name', '', 'type name')
+flags.DEFINE_string('image_name', '', 'type image name')
 
 def main(_argv):
     config = ConfigProto()
@@ -30,7 +32,9 @@ def main(_argv):
     session = InteractiveSession(config=config)
     STRIDES, ANCHORS, NUM_CLASS, XYSCALE = utils.load_config(FLAGS)
     input_size = FLAGS.size
-    image_path = FLAGS.image
+    image_path = './data/mixed_images/' + FLAGS.image_name
+    weights = './checkpoints/tflite_models/' + FLAGS.name
+    output = './outputs/' + FLAGS.image_name.split('.')[0] + '_' + FLAGS.name.split('.')[0] + '.png'
 
     original_image = cv2.imread(image_path)
     original_image = cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB)
@@ -46,7 +50,7 @@ def main(_argv):
     images_data = np.asarray(images_data).astype(np.float32)
 
     if FLAGS.framework == 'tflite':
-        interpreter = tf.lite.Interpreter(model_path=FLAGS.weights)
+        interpreter = tf.lite.Interpreter(model_path=weights)
         interpreter.allocate_tensors()
         input_details = interpreter.get_input_details()
         output_details = interpreter.get_output_details()
@@ -60,7 +64,7 @@ def main(_argv):
         else:
             boxes, pred_conf = filter_boxes(pred[0], pred[1], score_threshold=0.25, input_shape=tf.constant([input_size, input_size]))
     else:
-        saved_model_loaded = tf.saved_model.load(FLAGS.weights, tags=[tag_constants.SERVING])
+        saved_model_loaded = tf.saved_model.load(weights, tags=[tag_constants.SERVING])
         infer = saved_model_loaded.signatures['serving_default']
         batch_data = tf.constant(images_data)
         pred_bbox = infer(batch_data)
@@ -83,7 +87,7 @@ def main(_argv):
     image = Image.fromarray(image.astype(np.uint8))
     image.show()
     image = cv2.cvtColor(np.array(image), cv2.COLOR_BGR2RGB)
-    cv2.imwrite(FLAGS.output, image)
+    cv2.imwrite(output, image)
 
 if __name__ == '__main__':
     try:
